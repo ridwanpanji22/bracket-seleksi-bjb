@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bracket Seleksi BJB</title>
+  <meta name="description" content="Bagan pertandingan tanding Seleksi BJB per kelas.">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+  <header class="border-b border-slate-200 bg-white">
+    <div class="mx-auto max-w-5xl px-4 py-6">
+      <h1 class="text-2xl font-bold tracking-tight">Bracket Seleksi BJB</h1>
+      <p class="mt-1 text-sm text-slate-600">16 partai, 8 kelas. Sudut biru di atas, sudut merah di bawah.</p>
+      <nav aria-label="Pilih kelas" class="mt-4">
+        <ul id="nav" class="flex flex-wrap gap-2"></ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="brackets" class="mx-auto max-w-5xl space-y-6 px-4 py-6"></main>
+
+  <footer class="mx-auto max-w-5xl px-4 pb-8 text-xs text-slate-500">Sumber data: Seleksi BJB.xlsx</footer>
+
+  <script>
+    // Kolom: partai, kelas, nama biru, kontingen biru, nama merah, kontingen merah.
+    const ROWS = [
+      [1, 'A Putra', 'Akmal', 'Banjarbaru', 'M Haqqi', 'Banjarbaru'],
+      [2, 'A Putra', 'M Ade', 'Banjarbaru', 'Ilmi', 'Banjarbaru'],
+      [3, 'B Putra', 'Amin Badali', 'Banjarbaru', 'Marsyam', 'Banjarbaru'],
+      [4, 'C Putra', 'Saubari', 'Banjarbaru', 'Eko Wismono Adi', 'Banjarbaru'],
+      [5, 'C Putra', 'Abdullah', 'Banjarbaru', 'Tegar', 'Banjarbaru'],
+      [6, 'D Putra', 'Ilham', 'Banjarbaru', 'Fathan', 'Banjarbaru'],
+      [7, 'E Putra', 'Bilal', 'Banjarbaru', 'Fajar', 'Banjarbaru'],
+      [8, 'F Putra', 'Aldo', 'Banjarbaru', 'Fauzani', 'Banjarbaru'],
+      [9, 'G Putra', 'Putra', 'Banjarbaru', 'Ridwan', 'Banjarbaru'],
+      [10, 'B Putri', 'Sella', 'Banjarbaru', 'Najwa S', 'Banjarbaru'],
+      [11, 'A Putra', 'Pemenang Partai 1', 'Banjarbaru', 'Pemenang Partai 2', 'Banjarbaru'],
+      [12, 'B Putra', 'Pemenang Partai 3', 'Banjarbaru', 'Okta', 'Banjarbaru'],
+      [13, 'C Putra', 'Pemenang Partai 4', 'Banjarbaru', 'Pemenang Partai 5', 'Banjarbaru'],
+      [14, 'D Putra', 'Pemenang Partai 6', 'Banjarbaru', 'Agam Dufan', 'Banjarbaru'],
+      [15, 'E Putra', 'Pemenang Partai 7', 'Banjarbaru', 'Tamani', 'Banjarbaru'],
+      [16, 'F Putra', 'Pemenang Partai 8', 'Banjarbaru', 'Syafrudin', 'Banjarbaru'],
+    ];
+
+    const sourceOf = (name) => Number((name.match(/^Pemenang Partai (\d+)$/i) || [])[1]) || null;
+    const slug = (s) => 'kelas-' + s.toLowerCase().replace(/\s+/g, '-');
+    const esc = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+    const matches = ROWS.map(([no, kelas, biru, kBiru, merah, kMerah]) => ({
+      no, kelas,
+      slots: [
+        { corner: 'biru', name: biru, kontingen: kBiru, from: sourceOf(biru) },
+        { corner: 'merah', name: merah, kontingen: kMerah, from: sourceOf(merah) },
+      ],
+    }));
+    const byNo = new Map(matches.map((m) => [m.no, m]));
+
+    // Ronde = kedalaman pohon. Partai tanpa sumber berada di ronde 0.
+    const roundOf = (m) => Math.max(0, ...m.slots.filter((s) => s.from).map((s) => roundOf(byNo.get(s.from)) + 1));
+
+    const kelasOrder = [...new Set(ROWS.map((r) => r[1]))]
+      .sort((a, b) => a.split(' ')[1].localeCompare(b.split(' ')[1]) || a.localeCompare(b));
+
+    const CORNER = {
+      biru: { label: 'Biru', pill: 'bg-blue-700 text-white' },
+      merah: { label: 'Merah', pill: 'bg-red-700 text-white' },
+    };
+
+    function slotHtml(m, s) {
+      const c = CORNER[s.corner];
+      const name = s.from
+        ? `<span class="italic text-slate-600">Pemenang Partai ${s.from}</span>`
+        : `<span class="font-semibold">${esc(s.name)}</span>`;
+      const kontingen = s.from ? '' : `<span class="block text-xs text-slate-600">${esc(s.kontingen)}</span>`;
+      return `<li class="flex items-center gap-3 px-3 py-2" data-slot="${m.no}-${s.corner}">
+        <span class="w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-semibold ${c.pill}">${c.label}</span>
+        <span class="min-w-0">${name}${kontingen}</span>
+      </li>`;
+    }
+
+    function matchHtml(m, isFinal) {
+      return `<article class="w-60 overflow-hidden rounded-lg border border-slate-300 bg-white" data-match="${m.no}">
+        <h3 class="flex justify-between border-b border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+          <span>Partai ${m.no}</span><span>${isFinal ? 'Final' : 'Semifinal'}</span>
+        </h3>
+        <ul class="divide-y divide-slate-200">${m.slots.map((s) => slotHtml(m, s)).join('')}</ul>
+      </article>`;
+    }
+
+    function bracketHtml(kelas) {
+      const list = matches.filter((m) => m.kelas === kelas);
+      const depth = Math.max(...list.map(roundOf));
+      const columns = Array.from({ length: depth + 1 }, (_, r) => list.filter((m) => roundOf(m) === r));
+      const peserta = list.flatMap((m) => m.slots).filter((s) => !s.from).length;
+      return `<section id="${slug(kelas)}" class="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4" aria-labelledby="${slug(kelas)}-title">
+        <h2 id="${slug(kelas)}-title" class="text-lg font-bold">${kelas}</h2>
+        <p class="text-sm text-slate-600">${peserta} peserta, ${list.length} partai</p>
+        <div class="mt-4 overflow-x-auto">
+          <div class="bracket relative flex w-max gap-12 py-2">
+            <svg class="pointer-events-none absolute inset-0 h-full w-full text-slate-400" aria-hidden="true"></svg>
+            ${columns.map((col, r) => `<div class="relative flex flex-col justify-around gap-6">${col.map((m) => matchHtml(m, r === depth)).join('')}</div>`).join('')}
+          </div>
+        </div>
+      </section>`;
+    }
+
+    // Garis penghubung: dari sisi kanan partai asal ke slot tujuan di ronde berikutnya.
+    function drawConnectors() {
+      document.querySelectorAll('.bracket').forEach((root) => {
+        const svg = root.querySelector('svg');
+        const box = root.getBoundingClientRect();
+        const paths = [];
+        root.querySelectorAll('[data-match]').forEach((card) => {
+          byNo.get(Number(card.dataset.match)).slots.filter((s) => s.from).forEach((s) => {
+            const from = root.querySelector(`[data-match="${s.from}"]`).getBoundingClientRect();
+            const to = card.querySelector(`[data-slot="${card.dataset.match}-${s.corner}"]`).getBoundingClientRect();
+            const x1 = from.right - box.left, y1 = from.top + from.height / 2 - box.top;
+            const x2 = to.left - box.left, y2 = to.top + to.height / 2 - box.top;
+            const mid = (x1 + x2) / 2;
+            paths.push(`<path d="M${x1} ${y1}H${mid}V${y2}H${x2}" fill="none" stroke="currentColor" stroke-width="2"/>`);
+          });
+        });
+        svg.innerHTML = paths.join('');
+      });
+    }
+
+    document.getElementById('nav').innerHTML = kelasOrder.map((k) =>
+      `<li><a href="#${slug(k)}" class="inline-block rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">${k}</a></li>`
+    ).join('');
+    document.getElementById('brackets').innerHTML = kelasOrder.map(bracketHtml).join('');
+
+    new ResizeObserver(drawConnectors).observe(document.getElementById('brackets'));
+    document.fonts.ready.then(drawConnectors);
+  </script>
+</body>
+</html>
